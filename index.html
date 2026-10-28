@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AES 加密解密工具</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;color:#17243b;background:#f4f7fb;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}
+header{background:linear-gradient(120deg,#1769d2,#3293df);color:#fff;padding:26px max(22px,calc((100% - 1200px)/2))}
+header h1{margin:0 0 5px;font-size:clamp(1.5rem,3vw,2.2rem)}header p{margin:0;opacity:.92}
+main{max-width:1200px;margin:24px auto;padding:0 18px 32px}
+.notice{border:1px solid #c9dcf8;background:#edf5ff;border-radius:12px;padding:14px 16px;line-height:1.6;margin-bottom:18px;color:#23466f}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.panel{background:#fff;border:1px solid #d7e3f2;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px #16345b0a}
+.panel h2{font-size:1.15rem;margin:0;padding:16px 20px;background:#eef5ff;color:#174a91}
+.panel.decrypt h2{background:#eaf8f1;color:#087449}
+.content{padding:20px;display:grid;gap:14px}
+label{font-weight:650;font-size:.92rem;display:block;margin-bottom:6px}
+input,textarea,select{font:inherit;width:100%;border:1px solid #c7d4e4;border-radius:7px;padding:10px 11px;background:#fff;color:#17243b}
+textarea{min-height:105px;resize:vertical}textarea.output{background:#f7f9fc;min-height:125px}
+.help{font-size:.82rem;color:#687e9a;margin-top:5px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{border:0;border-radius:7px;padding:10px 15px;font:inherit;font-weight:650;cursor:pointer;background:#2476e8;color:#fff}
+button.secondary{background:#fff;color:#40536d;border:1px solid #cbd8e7}
+.decrypt button.primary{background:#119760}
+button:disabled{opacity:.55;cursor:wait}
+.result-label{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.result-label button{padding:6px 10px;font-size:.84rem}
+.status{min-height:1.4em;font-size:.9rem;color:#1769d2;overflow-wrap:anywhere}
+.status.error{color:#c53030}.status.ok{color:#087449}
+.options{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.options label{margin:0;font-weight:500;display:flex;gap:8px;align-items:center}
+.options input{width:auto}
+footer{color:#61748f;text-align:center;font-size:.85rem;padding:20px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}header{padding:22px 18px}main{margin-top:16px}.content{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔐 AES 加密解密工具</h1>
+  <p>基于浏览器 Web Crypto API · AES-256-GCM · 数据仅在本机处理</p>
+</header>
+<main>
+  <div class="notice"><strong>安全说明：</strong>本工具使用 AES-256-GCM 和 PBKDF2-SHA-256。请使用强密码并妥善保存密码；忘记密码将无法解密。此工具保护文本数据，不是 ESP32 固件签名或防破解方案。</div>
+  <div class="options">
+    <strong>加密算法：</strong>
+    <label><input type="radio" name="mode" value="gcm" checked> AES-256-GCM（推荐）</label>
+    <span class="help">GCM 的密钥、盐和 IV 由程序安全生成并随密文保存。</span>
+  </div>
+  <div class="grid">
+    <section class="panel">
+      <h2>🔒 加密（明文 → 密文）</h2>
+      <div class="content">
+        <div><label for="encPassword">加密密码</label><input id="encPassword" type="password" autocomplete="new-password" placeholder="请输入强密码"><div class="help">建议使用长密码或密码管理器生成的随机密码。</div></div>
+        <div><label for="plainText">明文内容</label><textarea id="plainText" placeholder="输入要加密的文本……"></textarea></div>
+        <div class="row"><button id="encryptBtn">开始加密</button><button class="secondary" id="clearEnc">清空</button></div>
+        <div><div class="result-label"><label for="cipherText">加密结果（JSON）</label><button class="secondary" data-copy="cipherText">复制结果</button></div><textarea id="cipherText" class="output" spellcheck="false" placeholder="加密结果会显示在这里……"></textarea><div class="help">请保存完整 JSON；它包含解密所需的盐、IV 和密文，但不包含密码。</div></div>
+        <div id="encStatus" class="status" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+    <section class="panel decrypt">
+      <h2>🔓 解密（密文 → 明文）</h2>
+      <div class="content">
+        <div><label for="decPassword">解密密码</label><input id="decPassword" type="password" autocomplete="current-password" placeholder="输入加密时使用的密码"></div>
+        <div><label for="cipherInput">加密结果（JSON）</label><textarea id="cipherInput" placeholder="粘贴完整的加密 JSON……" spellcheck="false"></textarea><div class="help">也可以将左侧生成的结果复制到这里。</div></div>
+        <div class="row"><button id="decryptBtn" class="primary">开始解密</button><button class="secondary" id="clearDec">清空</button></div>
+        <div><div class="result-label"><label for="plainOutput">解密结果</label><button class="secondary" data-copy="plainOutput">复制明文</button></div><textarea id="plainOutput" class="output" placeholder="解密后的文本会显示在这里……" readonly></textarea></div>
+        <div id="decStatus" class="status" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+  <footer>单文件 HTML · 无第三方依赖 · 使用浏览器原生 Web Crypto API</footer>
+</main>
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function setStatus(id, message, type = "") {
+  const el = $(id);
+  el.textContent = message;
+  el.className = "status" + (type ? " " + type : "");
+}
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+function base64ToBytes(value) {
+  const normalized = value.replace(/\s/g, "");
+  const binary = atob(normalized);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+function randomBytes(length) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+async function deriveKey(password, salt, usages) {
+  const material = await crypto.subtle.importKey(
+    "raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    {name: "PBKDF2", salt, iterations: 600000, hash: "SHA-256"},
+    material,
+    {name: "AES-GCM", length: 256},
+    false,
+    usages
+  );
+}
+function validatePassword(password) {
+  if (!password) throw new Error("请先输入密码。");
+  if (encoder.encode(password).length < 12) {
+    throw new Error("建议使用至少 12 字节的强密码。");
+  }
+}
+function setBusy(buttonIds, busy) {
+  buttonIds.forEach(id => { $(id).disabled = busy; });
+}
+
+async function encryptText() {
+  setStatus("encStatus", "");
+  const password = $("encPassword").value;
+  const plaintext = $("plainText").value;
+  try {
+    validatePassword(password);
+    if (!plaintext) throw new Error("请输入要加密的明文。");
+    if (!crypto.subtle) throw new Error("当前浏览器不支持 Web Crypto API，请使用现代浏览器并通过 HTTPS 或 localhost 打开。");
+    setBusy(["encryptBtn"], true);
+    const salt = randomBytes(16);
+    const iv = randomBytes(12);
+    const key = await deriveKey(password, salt, ["encrypt"]);
+    const encrypted = await crypto.subtle.encrypt(
+      {name: "AES-GCM", iv, tagLength: 128},
+      key,
+      encoder.encode(plaintext)
+    );
+    const payload = {
+      format: "browser-aes-gcm",
+      version: 1,
+      kdf: "PBKDF2-SHA-256",
+      iterations: 600000,
+      cipher: "AES-256-GCM",
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(new Uint8Array(encrypted))
+    };
+    $("cipherText").value = JSON.stringify(payload, null, 2);
+    $("cipherInput").value = $("cipherText").value;
+    setStatus("encStatus", "加密成功。请保存完整 JSON 和密码。", "ok");
+  } catch (error) {
+    setStatus("encStatus", error.message || "加密失败。", "error");
+  } finally {
+    setBusy(["encryptBtn"], false);
+  }
+}
+
+async function decryptText() {
+  setStatus("decStatus", "");
+  $("plainOutput").value = "";
+  const password = $("decPassword").value;
+  try {
+    validatePassword(password);
+    if (!crypto.subtle) throw new Error("当前浏览器不支持 Web Crypto API，请使用现代浏览器并通过 HTTPS 或 localhost 打开。");
+    const payload = JSON.parse($("cipherInput").value);
+    if (payload.format !== "browser-aes-gcm" || payload.version !== 1 ||
+        payload.cipher !== "AES-256-GCM" || payload.kdf !== "PBKDF2-SHA-256") {
+      throw new Error("不支持的加密格式或版本。");
+    }
+    if (payload.iterations !== 600000) throw new Error("KDF 参数不符合此工具的预期。");
+    const salt = base64ToBytes(payload.salt);
+    const iv = base64ToBytes(payload.iv);
+    const ciphertext = base64ToBytes(payload.ciphertext);
+    if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 16) {
+      throw new Error("加密数据格式无效或内容不完整。");
+    }
+    setBusy(["decryptBtn"], true);
+    const key = await deriveKey(password, salt, ["decrypt"]);
+    const decrypted = await crypto.subtle.decrypt(
+      {name: "AES-GCM", iv, tagLength: 128},
+      key,
+      ciphertext
+    );
+    $("plainOutput").value = decoder.decode(decrypted);
+    setStatus("decStatus", "解密成功，认证标签验证通过。", "ok");
+  } catch (error) {
+    const message = error instanceof SyntaxError
+      ? "JSON 格式无效，请粘贴完整的加密结果。"
+      : (error.name === "OperationError"
+        ? "解密失败：密码错误，或密文/参数已被修改。"
+        : (error.message || "解密失败。"));
+    setStatus("decStatus", message, "error");
+  } finally {
+    setBusy(["decryptBtn"], false);
+  }
+}
+
+$("encryptBtn").addEventListener("click", encryptText);
+$("decryptBtn").addEventListener("click", decryptText);
+$("clearEnc").addEventListener("click", () => {
+  $("encPassword").value = "";
+  $("plainText").value = "";
+  $("cipherText").value = "";
+  setStatus("encStatus", "");
+});
+$("clearDec").addEventListener("click", () => {
+  $("decPassword").value = "";
+  $("cipherInput").value = "";
+  $("plainOutput").value = "";
+  setStatus("decStatus", "");
+});
+document.querySelectorAll("[data-copy]").forEach(button => {
+  button.addEventListener("click", async () => {
+    const target = $(button.dataset.copy);
+    if (!target.value) return;
+    try {
+      await navigator.clipboard.writeText(target.value);
+      button.textContent = "已复制";
+      setTimeout(() => { button.textContent = button.dataset.copy === "cipherText" ? "复制结果" : "复制明文"; }, 1200);
+    } catch {
+      target.focus();
+      target.select();
+      setStatus(button.dataset.copy === "cipherText" ? "encStatus" : "decStatus",
+        "浏览器不允许直接复制，请手动选择并复制。", "error");
+    }
+  });
+});
+</script>
+</body>
+</html>
